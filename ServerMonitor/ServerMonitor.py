@@ -16,7 +16,7 @@
 
 import logging
 
-from Subsystems import *
+from ServerMonitor.Subsystems import *
 
 class ServerMonitor:
     def __init__(self, config_path):

@@ -17,7 +17,7 @@
 import socketserver
 import threading
 
-from Subsystems.API.TCPHandler import APIRequestHandler
+from ServerMonitor.Subsystems.API.TCPHandler import APIRequestHandler
 
 
 class API(threading.Thread):
