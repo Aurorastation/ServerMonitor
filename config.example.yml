@@ -1,0 +1,17 @@
+API:
+  allowed_hosts:
+    - "localhost"
+    - "127.0.0.1"
+  host: "localhost"
+  port: 1123
+
+servers:
+  master:
+    git-path: ""
+    game-path: ""
+    byond-path: ""
+    port: 1234
+    visibility: "-public"
+    start: True
+    auths:
+      - R_ADMIN
