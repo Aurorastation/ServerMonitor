@@ -74,13 +74,16 @@ class ServerData():
             self.auths = _auths
 
     def get_dd_path(self):
-        return self.byond_path + "\\dreamdaemon.exe"
+        return os.path.join(self.byond_path, "\\dreamdaemon.exe")
 
     def get_dm_path(self):
-        return self.byond_path + "\\dreammaker.exe"
+        return os.path.join(self.byond_path, "\\dreammaker.exe")
 
     def get_dme_path(self):
-        return self.git_path + "\\baystation12.dme"
+        return os.path.join(self.git_path, "\\baystation12.dme")
 
     def get_dmb_path(self):
-        return self.game_path + "\\baystation12.dmb"
+        return os.path.join(self.game_path, "\\baystation12.dmb")
+
+    def get_changelog_tool(self):
+        return os.path.join(self.git_path, "tools\\GenerateChangelog\\ss13_genchangelog.py")

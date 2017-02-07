@@ -48,7 +48,7 @@ class ServerMonitor:
             raise RuntimeError("Exception caught during creation. Ceasing.")
 
         # Events queue
-        self.events = {}
+        self.tasks = []
 
         # Server datum list
         self.servers = []

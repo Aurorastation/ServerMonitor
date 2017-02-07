@@ -48,6 +48,7 @@ class APIRequestHandler(socketserver.BaseRequestHandler):
 
         # No data.
         if not self.data:
+            self.API.logger.debug("API: No data received from a request.")
             return
 
         # Catch bad data and return information.

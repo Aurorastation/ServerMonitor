@@ -45,19 +45,20 @@ class API(threading.Thread):
         self.config = _config.get_value("API")
 
     def run(self):
-        try:
-            HOST, PORT = self.config["host"], self.config["port"]
+        while True:
+            try:
+                self.logger.info("API: Socket server opened.")
+                HOST, PORT = self.config["host"], self.config["port"]
 
-            # Set up the TCP server.
-            self.server = socketserver.TCPServer((HOST, PORT), APIRequestHandler)
+                # Set up the TCP server.
+                self.server = socketserver.TCPServer((HOST, PORT), APIRequestHandler)
 
-            self.server.RequestHandlerClass._API = self
+                self.server.RequestHandlerClass._API = self
 
-            # Aaaand run it forever.
-            self.server.serve_forever()
-        except Exception as e:
-            self.logger.error("API: Error during socket operations: {0}".format(e))
-            self.join()
+                # Aaaand run it forever.
+                self.server.serve_forever()
+            except Exception as e:
+                self.logger.error("API: Error during socket operations: {0}".format(e))
 
     def handle_command(self, data):
         if not data:
