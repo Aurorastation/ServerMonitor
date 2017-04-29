@@ -15,6 +15,7 @@
 #    along with this program.  If not, see http://www.gnu.org/licenses/.
 
 import logging
+import time
 
 from ServerMonitor.Subsystems import *
 
@@ -92,7 +93,7 @@ class ServerMonitor:
 
         # Sleep the main thread. Yaaay.
         while True:
-            pass
+            time.sleep(360)
 
     def generate_servers(self):
         self.servers = []
