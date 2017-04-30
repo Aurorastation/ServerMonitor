@@ -18,7 +18,16 @@ import threading
 import subprocess
 import time
 
+## A class responsible for running and monitoring a server.
 class Server(threading.Thread):
+    ## The constructor
+    #
+    # @param self The object pointer.
+    # @param _data A %ServerData object which contains all of the information
+    # necessary for operation of this server.
+    # @param _logger A logger object.
+    #
+    # @throws ValueError In case of _data or _logger missing.
     def __init__(self, _data, _logger):
         threading.Thread.__init__(self)
 
@@ -43,12 +52,24 @@ class Server(threading.Thread):
         # The running indicator
         self.running = False
 
+    ## Starts the server and the thread.
+    #
+    # Will run into a while (self.running) loop which keeps the server going
+    # until the boolean is set to false. Automatic restarts are included in this
+    # loop.
+    #
+    # Since run exits once the server is told to stop, the thread will also then
+    # close and terminate.
+    #
+    # @param self The object pointer.
+    #
+    # @throw RuntimeError In case a server that's already running is given a second
+    # start by an external source.
     def run(self):
-        """A blocking process which will start and run a server until it's terminated."""
         if self.process is None:
             self.running = True
 
-            while (self.running):
+            while self.running:
                 self.logger.info("SERVER {0}: Started.".format(self.name))
 
                 # This blocks.
@@ -57,30 +78,50 @@ class Server(threading.Thread):
                 time.sleep(30)
 
         else:
-            raise RuntimeError("SERVER {0}: Attempted to run a second time while already running.".format(self.name))
+            raise RuntimeError("SERVER {0}: Attempted to run a second time"
+                               " while already running.".format(self.name))
 
+    ## Will start the server and waits for it to exit.
+    #
+    # @param self The object pointer.
+    #
+    # @throws RuntimeException In case of any errors from the subprocess.
     def start_server(self):
-        """Starts a new DreamDaemon process and launches a server with it."""
-        args = [self.data.get_dd_path(), self.data.get_dmb_path(), '-port {0}'.format(self.data.port), '-trusted', self.data.visibility, '-close']
+        args = [self.data.get_dd_path(), self.data.get_dmb_path(),
+                '-port {0}'.format(self.data.port), '-trusted',
+                self.data.visibility, '-close']
 
         try:
-            self.process = subprocess.Popen(args, stdout=subprocess.PIPE)
+            self.process = subprocess.Popen(args)
         except Exception as e:
-            raise RuntimeError("SERVER {0}: Runtimed while attempting to start: {1}".format(self.name, e))
+            raise RuntimeError(
+                "SERVER {0}: Runtimed while attempting to start: {1}".format(self.name, e))
 
         self.process.wait()
 
         self.logger.info("SERVER {0}: Dreamdaemon stopped.".format(self.name))
 
+    ## Will forcefully terminate the server.
+    #
+    # If self.running is left as True, this will act as a forced restart command.
+    #
+    # @param self The object pointer.
     def force_restart(self):
-        """Forcefully restarts the server, by killing DreamDaemon and allowing it to restart."""
         if self.running and self.process:
             self.logger.warning("SERVER {0}: Force restart initiated.".format(self.name))
 
             self.process.terminate()
 
+    ## Will permanently stop the server and join it.
+    #
+    # Unlike %force_restart, this will close the server permanently and then join
+    # the thread.
+    #
+    # @param self The object pointer.
+    #
+    # @throws RuntimeError In case a shutdown command is issued to a server that's
+    # not running.
     def stop_server(self):
-        """Shuts down the server completely. You should wait a little after calling this, before proceeding with new commands."""
         if self.running:
             self.running = False
 
@@ -92,4 +133,5 @@ class Server(threading.Thread):
             # RIP the thread at the end.
             self.join()
         else:
-            raise RuntimeError("SERVER {0}: Attempted to shut down, but was found not running.".format(self.name))
+            raise RuntimeError(
+                "SERVER {0}: Attempted to shut down, but was found not running.".format(self.name))

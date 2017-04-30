@@ -15,31 +15,118 @@
 #    along with this program.  If not, see http://www.gnu.org/licenses/.
 
 import threading
-import pygit2
 import subprocess
 import os
 import shutil
+import pygit2
 
+TASK_INSTALL = 0
+TASK_COMPILE = 1
+TASK_PULL = 2
+TASK_CHANGELOGS = 3
+
+## A generic task runner class. Has all the tasks hardcoded currently.
+#
+# Exists to run tasks on a given Server::Server object. Can be used to queue a myriad
+# of tasks in sequence, and it'll execute them all in one thread.
+#
+# @sa ServerData::ServerData
 class Task(threading.Thread):
-    def __init__(self, _tasks, _server):
+
+    ## A dictionary of task enums -> plain text descriptions.
+    _task_descriptions = {
+        TASK_INSTALL: "directory initialization",
+        TASK_COMPILE: "code compilation",
+        TASK_PULL: "pulling new code",
+        TASK_CHANGELOGS: "generate and upload changelogs"
+    }
+
+    ## The constructor
+    #
+    # @param self The object pointer.
+    # @param _tasks A dictionary of %TaskTypes constants which describe the sequence
+    # of tasks to be executed.
+    # @param _server A ServerData::ServerData object, on which we'll perform the described tasks.
+    # @param _pr_num The # of the PR which was merged in reference to this task.
+    # Used for changelog generation.
+    # @param is_robust A boolean to control whether or not the Task should stop running
+    # if it encounters any errors.
+    #
+    # @throws ValueError In case of a missing argument.
+    def __init__(self, _tasks, _server, _pr_num=0, is_robust=False):
+        ## A dictionary of task enums -> Task::Task functions. Used in Task::Task::run.
+        self.tasks_dictionary = {
+            TASK_INSTALL: self.initialize_directory,
+            TASK_COMPILE: self.compile_dme,
+            TASK_PULL: self.pull,
+            TASK_CHANGELOGS: self.generate_changelogs
+        }
+
         threading.Thread.__init__(self)
-        self.can_join = False
 
         if not _tasks:
-            self.can_join = True
-            raise ValueError("No task given.")
+            raise ValueError("No tasks set sent.")
+
+        ## A list of tasks to be executed.
         self.tasks = _tasks
 
         if not _server:
-            self.can_join = True
-            raise ValueError("No serverData object given.")
+            raise ValueError("No tasks set sent.")
+
+        ## A ServerData::ServerData object that we're performing tasks on.
         self.server = _server
 
-    def run(self):
-        pass
+        ## Determines whether or not the object keeps executing its tasks after
+        # encountering an error.
+        self.robust = is_robust
 
-    def pull(self, remote_name = 'origin', branch = 'master'):
-        """Pull new changes from a specific remote and branch."""
+        ## The PR # of the PR which is related to this task. Only concerns CI
+        # tasks.
+        self.pr_num = _pr_num
+
+    ## Starts the thread.
+    #
+    # @param self The object pointer.
+    def run(self):
+        # Attach ourselves to the ServerData object.
+        self.server.server_task = self
+
+        # Start processing every task.
+        while len(self.tasks):
+            task_nr = self.tasks.pop()
+            task = self.tasks_dictionary[task_nr]
+            try:
+                self.server.logger.info(
+                    "SERVER {0}: Task executed: {1}".format(self.server.name,
+                                                            self._task_descriptions[task_nr]))
+                task()
+            except RuntimeError as e:
+                self.server.logger.error(
+                    "SERVER {0}: Runtimed while processing task: {1}".format(self.server.name, e))
+                if not self.robust:
+                    break
+
+        # Detach from the ServerData object.
+        self.server.server_task = None
+
+        # Close the thread.
+        self.join()
+
+    ## Pulls new code to local.
+    #
+    # Will only run pulls in case of fast forwards, as to not generate further
+    # issues with local history being out of touch with origin history.
+    #
+    # @param self The object pointer.
+    # @param remote_name The string name of the remote we're pulling from. Defaults
+    # to 'origin'.
+    # @param branch The string name of the branch we're syncing to in the remote.
+    #
+    # @throws RuntimeError In case of the merge being a fast forward or an unknown
+    # merge analysis result.
+    def pull(self):
+        remote_name = "origin"
+        branch = self.server.git_branch
         repo = pygit2.Repository(self.server.git_path + "\\.git")
 
         # Snippet from MichaelBoselowitz/pygit2-examples/examples.py from Github.
@@ -63,34 +150,54 @@ class Task(threading.Thread):
                 elif merge_result & pygit2.GIT_MERGE_ANALYSIS_NORMAL:
                     raise RuntimeError("Repo cannot be directly merged.")
                 else:
-                    raise AssertionError('Unknown merge analysis result')
+                    raise RuntimeError("Unknown merge analysis result.")
 
                 break
 
-    def compile(self):
-        """Compiles the code."""
+    ## Compiles the codebase.
+    #
+    # @param self The object pointer.
+    #
+    # @throws RuntimeError In case of complication failing.
+    def compile_dme(self):
         args = [self.server.get_dm_path(), self.server.get_dme_path()]
 
         proc = subprocess.Popen(args, stdout=subprocess.PIPE)
 
-        proc.wait()
+        out = proc.communicate()[0]
 
+        out_str = out.decode("utf-8")
+
+        if out_str.find("0 errors, 0 warnings") == -1:
+            raise RuntimeError("Compilation failed.")
+
+    ## Creates the symlinks for the game directory.
+    #
+    # Should only be run if a server is initially installed. Can be skipped
+    # entirely with a manual installation.
+    #
+    # @param self The object pointer.
+    #
+    # @throws RuntimeError In case of the game code not being compiled, the .dmb
+    # file cannot be symlinked.
     def initialize_directory(self):
-        """Creates the game directory as is necessary. To be called !after! the first compiling! And only when you're initing a server!"""
         if not os.path.isfile(self.server.byond_path + "\\baystation12.dmb"):
-            raise RuntimeError("{0}: Game code not compiled, cannot link the .dmb.".format(self.name))
+            raise RuntimeError(
+                "{0}: Game code not compiled, cannot link the .dmb.".format(self.name))
 
         if not os.path.exists(self.server.game_path):
             os.makedirs(self.server.game_path)
 
         # These are the directories we symlink to the game directory.
-        dir_list = ["html", "ingame_manuals", "interface", "lib", "nano", "scripts", "sound", "tools", ".git"]
+        dir_list = ["html", "ingame_manuals", "interface", "lib", "nano",
+                    "scripts", "sound", "tools", ".git"]
         # And these are the individual files.
-        file_list = ["baystation12.dmb", "baystation12.rsc", "btime.dll", "ByondPOST.dll", "libcurl.dll", "libmysql.dll"]
+        file_list = ["baystation12.dmb", "baystation12.rsc", "btime.dll",
+                     "ByondPOST.dll", "libcurl.dll", "libmysql.dll"]
 
-        for dir in dir_list:
-            src = os.path.join(self.server.git_path, dir)
-            dst = os.path.join(self.server.game_path, dir)
+        for path in dir_list:
+            src = os.path.join(self.server.git_path, path)
+            dst = os.path.join(self.server.game_path, path)
 
             os.symlink(src, dst, target_is_directory=True)
 
@@ -105,8 +212,16 @@ class Task(threading.Thread):
         shutil.copytree(os.path.join(self.server.git_path, "config\\names"),
                         os.path.join(self.server.game_path, "config\\names"))
 
-    def generate_changelogs(self, pr_num, remote_name='origin', ref='refs/heads/master:refs/heads/master'):
-        """Generates changelogs and commits them."""
+    ## Generates changelogs, creates a commit for them, and pushes them up.
+    #
+    # @param self The object pointer.
+    # @param pr_num The # of the PR that was merged and we're making changelogs of.
+    # @param remote_name The string name of the remote we're targeting.
+    # @param ref The reference name we're going to be pushing to. Should be left
+    # untouched in most cases.
+    def generate_changelogs(self):
+        ref = "refs/heads/{0}:refs/heads/{0}".format(self.server.git_branch)
+        remote_name = "origin"
 
         mypath = os.path.join(self.server.git_path, "html\\changelogs")
         files = [f for f in os.listdir(mypath) if os.path.isfile(os.path.join(mypath, f))]
@@ -135,7 +250,7 @@ class Task(threading.Thread):
             commit = repo.create_commit('HEAD',
                                         user,
                                         user,
-                                        'Changelogs for PR {0}'.format(pr_num),
+                                        '[CI-Skip] Changelogs for PR {0}'.format(self.pr_num),
                                         tree,
                                         parent)
 

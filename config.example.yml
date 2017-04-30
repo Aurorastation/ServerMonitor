@@ -10,6 +10,7 @@ servers:
     git-path: ""
     game-path: ""
     byond-path: ""
+    git-branch: ""
     port: 1234
     visibility: "-public"
     start: True

@@ -24,36 +24,40 @@ class API(threading.Thread):
     def __init__(self, _monitor, _logger, _config):
         threading.Thread.__init__(self)
 
+        ## Object name as a string.
         self.name = "API"
 
         if not _monitor:
             raise ValueError("API: Wasn't handed a monitor object.")
 
-        # Monitor object to interact with.
+        ## ServerMonitor::ServerMonitor object to interact with.
         self.monitor = _monitor
 
         if not _logger:
             raise ValueError("API: Wasn't handed a logger.")
 
-        # The logger.
+        ## The logger.
         self.logger = _logger
 
         if not _config:
             raise ValueError("API: Wasn't handed a config object.")
 
-        # The config dictionary.
+        ## The config dictionary.
         self.config = _config.get_value("API")
+
+        # Begin socket server setup.
+        host, port = self.config["host"], self.config["port"]
+
+        ## The TCP server object we're attaching ourselves to.
+        self.server = socketserver.TCPServer((host, port), APIRequestHandler)
+
+        self.server.RequestHandlerClass._API = self
 
     def run(self):
         while True:
             try:
+                # Log the start.
                 self.logger.info("API: Socket server opened.")
-                HOST, PORT = self.config["host"], self.config["port"]
-
-                # Set up the TCP server.
-                self.server = socketserver.TCPServer((HOST, PORT), APIRequestHandler)
-
-                self.server.RequestHandlerClass._API = self
 
                 # Aaaand run it forever.
                 self.server.serve_forever()

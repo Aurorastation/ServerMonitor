@@ -16,74 +16,101 @@
 
 import os.path
 
+## A data object holding information from a config file about a server.
+#
+# Used as a variable and data holder by Server::Server. Also has getters for
+# "complex" path operations.
 class ServerData():
-    def __init__(self, _name, _game_path, _git_path, _byond_path, _port, _visibility, _start, _auths):
-
-        # The unique name for the server. For ID purposes.
+    ## The constructor.
+    #
+    # @param self The object pointer.
+    # @param _name The string name of the server.
+    # @param dictionary The dictionary containing initial information about the
+    # server object, directly from the configuration file.
+    #
+    # @throws ValueError In case of a missing or bad argument.
+    def __init__(self, _name, dictionary):
         if not _name:
             raise ValueError("SERVER DATA: No name provided.")
+        ## The unique name for the server. For ID purposes.
         self.name = _name
 
-        # The path for the symlinked .dmb
-        if not _game_path:
+        if not dictionary["game-path"]:
             raise ValueError("SERVER {0}: No game path provided.".format(self.name))
-        self.game_path = _game_path
+        ## The path for the symlinked .dmb
+        self.game_path = dictionary["game-path"]
 
-        # See if we're ready to boot up immediately.
+        ## Determines whether or not installation is required or not.
         self.server_ready = os.path.isfile(self.game_path + "\\baystation12.dmb")
 
-        # The path for the project root.
-        if not _git_path:
+        if not dictionary["git-path"]:
             raise ValueError("SERVER {0}: No git path provided.".format(self.name))
-        self.git_path = _git_path
+        ## The path for the project root.
+        self.git_path = dictionary["git-path"]
 
-        # Check if we have the code already downloaded.
+        if not dictionary["git-branch"]:
+            raise ValueError("SERVER {0}: No git branch name provided.".format(self.name))
+        ## The name of the git branch this server will be pulling and syncing with.
+        self.git_branch = dictionary["git-branch"]
+
+        ## Determines whether or not the code is present and ready for compile/install.
         self.compile_ready = os.path.isfile(self.git_path + "\\baystation12.dme")
 
-        # Check if we actually have a BYOND directory given.
-        if not _byond_path:
+        if not dictionary["byond-path"]:
             raise ValueError("SERVER {0}: No DreamDaemon path provided.".format(self.name))
-        self.byond_path = _byond_path
+        ## The path to the BYOND executable used for this server.
+        self.byond_path = dictionary["byond-path"]
 
-        # Server port.
-        if not _port:
+        if not dictionary["port"]:
             raise ValueError("SERVER {0}: No port provided.".format(self.name))
-        self.port = _port
+        ## Server port.
+        self.port = dictionary["port"]
 
-        # Server visibility.
-        if _visibility not in ["-public", "-invisible", "-private"]:
+        if dictionary["visibility"] not in ["-public", "-invisible", "-private"]:
             raise ValueError("SERVER {0}: Invalid visibility variable provided.".format(self.name))
-        self.visibility = _visibility
+        ## Server visibility.
+        #
+        # Valid values: "-public", "-invisible", "-private".
+        self.visibility = dictionary["visibility"]
 
-        # Do we want to start immediately or not?
-        self.start = _start
+        ## Do we want to start immediately or not?
+        self.start = dictionary["start"]
 
         # Sanity checks for days.
-        if not os.path.isfile(self.byond_path + "\\dreamdaemon.exe") or not os.path.isfile(self.byond_path + "\\dreammaker.exe"):
+        if not os.path.isfile(self.byond_path + "\\dreamdaemon.exe") or not\
+            os.path.isfile(self.byond_path + "\\dreammaker.exe"):
             raise ValueError("SERVER {0}: Assigned DreamDaemon path does not contain the required .exes.".format(self.name))
 
         if not os.path.isdir(self.git_path):
             raise ValueError("SERVER {0}: Git path does not exist.".format(self.name))
 
-        # The object for the Subsystems.Server we're going to have.
+        ## The object for the Server::Server we're going to have.
         self.server_thread = None
 
-        # The string names of the perms that can control this server.
-        self.auths = {}
-        if _auths:
-            self.auths = _auths
+        ## The Task::Task which is currently tending to this server.
+        self.server_task = None
 
+        ## The string names of the perms that can control this server.
+        self.auths = {}
+        if dictionary["auths"]:
+            self.auths = dictionary["auths"]
+
+    ## Getter for the DreamDaemon.exe used to run this server.
     def get_dd_path(self):
         return os.path.join(self.byond_path, "\\dreamdaemon.exe")
 
+    ## Getter for the DreamMaker.exe used to compile this server's code.
     def get_dm_path(self):
         return os.path.join(self.byond_path, "\\dreammaker.exe")
 
+    ## Getter for the .dme file of the server.
     def get_dme_path(self):
         return os.path.join(self.git_path, "\\baystation12.dme")
 
+    ## Getter for the .dmb file of the server.
     def get_dmb_path(self):
         return os.path.join(self.game_path, "\\baystation12.dmb")
 
+    ## Getter for the changelog tool (python program) of the server.
     def get_changelog_tool(self):
         return os.path.join(self.git_path, "tools\\GenerateChangelog\\ss13_genchangelog.py")

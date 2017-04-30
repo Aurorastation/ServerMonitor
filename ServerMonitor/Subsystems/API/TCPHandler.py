@@ -18,7 +18,7 @@ import socketserver
 import json
 
 class APIRequestHandler(socketserver.BaseRequestHandler):
-    # The class variable for the API object.
+    ## The class variable for the API object.
     _API = None
 
     def handle(self):
@@ -31,7 +31,9 @@ class APIRequestHandler(socketserver.BaseRequestHandler):
         # Request user is not whitelisted.
         if self.client_address[0] not in self.API.config["allowed_hosts"]:
             self.send_return_data({"error": True, "msg": "Address not whitelisted."})
-            self.API.logger.debug("API: Request address not whitelisted. Address: {0}.".format(self.client_address[0]))
+            self.API.logger.debug(
+                "API: Request address not whitelisted. Address: {0}.".format(
+                    self.client_address[0]))
             return
 
         # The data!
@@ -62,15 +64,20 @@ class APIRequestHandler(socketserver.BaseRequestHandler):
         # More bad data catching.
         if "cmd" not in self.data or "auths" not in self.data or "args" not in self.data:
             self.send_return_data({"error": True, "msg": "Malformed data received."})
-            self.API.logger.info("API: Malformed data received. Address: {0}. Data: {1}".format(self.client_address[0], self.data))
+            self.API.logger.info(
+                "API: Malformed data received. Address: {0}. Data: {1}".format(
+                    self.client_address[0], self.data))
             return
 
         # Actually do the thing now!
         try:
             self.send_return_data(self.API.handle_command(self.data))
         except Exception as e:
-            self.send_return_data({"error": True, "msg": "Error caught while processing command."})
-            self.API.logger.error("API: Error caught while processing command: {0}. Data: {1}".format(e, self.data))
+            self.send_return_data(
+                {"error": True, "msg": "Error caught while processing command."})
+            self.API.logger.error(
+                "API: Error caught while processing command: {0}. Data: {1}".format(
+                    e, self.data))
 
         # And we're done.
         return
