@@ -78,7 +78,7 @@ class ServerData():
 
         # Sanity checks for days.
         if not os.path.isfile(self.byond_path + "\\dreamdaemon.exe") or not\
-            os.path.isfile(self.byond_path + "\\dreammaker.exe"):
+            os.path.isfile(self.byond_path + "\\dm.exe"):
             raise ValueError("SERVER {0}: Assigned DreamDaemon path does not contain the required .exes.".format(self.name))
 
         if not os.path.isdir(self.git_path):
@@ -97,20 +97,20 @@ class ServerData():
 
     ## Getter for the DreamDaemon.exe used to run this server.
     def get_dd_path(self):
-        return os.path.join(self.byond_path, "\\dreamdaemon.exe")
+        return self.byond_path + "\\dreamdaemon.exe"
 
     ## Getter for the DreamMaker.exe used to compile this server's code.
     def get_dm_path(self):
-        return os.path.join(self.byond_path, "\\dreammaker.exe")
+        return self.byond_path + "\\dm.exe"
 
     ## Getter for the .dme file of the server.
     def get_dme_path(self):
-        return os.path.join(self.git_path, "\\baystation12.dme")
+        return self.git_path + "\\baystation12.dme"
 
     ## Getter for the .dmb file of the server.
     def get_dmb_path(self):
-        return os.path.join(self.game_path, "\\baystation12.dmb")
+        return self.game_path + "\\baystation12.dmb"
 
     ## Getter for the changelog tool (python program) of the server.
     def get_changelog_tool(self):
-        return os.path.join(self.git_path, "tools\\GenerateChangelog\\ss13_genchangelog.py")
+        return self.git_path + "\\tools\\GenerateChangelog\\ss13_genchangelog.py"
