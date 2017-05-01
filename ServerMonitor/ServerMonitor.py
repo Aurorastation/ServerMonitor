@@ -77,23 +77,29 @@ class ServerMonitor:
 
         ## The command dictionary for the API. May need refactoring.
         self.api_commands = {
+            # The name of the command from the API.
             "server_control": {
+                # The associated function.
                 "cmd": self.cmd_control_server,
-                "args": ["control", "server"],
-                "auths": [],
-                "needs_queue": False
+                # A dictionary of args. Associated value indicated whether or not
+                # the argument is required (True) or optional (False).
+                "args": {"control": True,
+                         "server": True},
+                # A list of auths, in string form, required to use the command.
+                # Empty for no auth required.
+                "auths": []
             },
             "get_servers": {
                 "cmd": self.cmd_get_servers,
-                "args": [],
-                "auths": ["R_ADMIN", "R_DEV"],
-                "needs_queue": False
+                "args": {},
+                "auths": ["R_ADMIN", "R_DEV"]
             },
             "create_task": {
                 "cmd": self.cmd_create_task,
-                "args": ["server", "commands"],
-                "auths": [],
-                "needs_queue": True
+                "args": {"server": True,
+                         "commands": True,
+                         "pr_num": False},
+                "auths": []
             }
         }
 
@@ -126,10 +132,17 @@ class ServerMonitor:
         # Start the API.
         self.api.start()
 
+        # @todo Remove debug from this proc.
+        found_server = None
+
         # Cycle over servers that should be started. And start them.
         for server in self.servers:
+            found_server = server
             if server.start:
                 self.start_server(server)
+
+        # Debug shit is a gooo!
+        self.tasks.append(Task(self.logger, [1, 3, 2], found_server, 666))
 
         # Sleep the main thread. Yaaay.
         while True:
@@ -193,8 +206,17 @@ class ServerMonitor:
         if server.server_thread:
             return
 
-        server.server_thread = Server(server, self.logger)
-        server.server_thread.start()
+        try:
+            server.server_thread = Server(server, self.logger)
+            server.server_thread.start()
+        except ValueError as e:
+            self.logger.error("SERVER %s: Error creating server thread: %s",
+                              server.name, e)
+            server.can_run = False
+        except RuntimeError as e1:
+            self.logger.error("SERVER %s: Error starting server thread: %s",
+                              server.name, e1)
+            server.can_run = False
 
     ## Stops a server.
     #
@@ -356,7 +378,7 @@ class ServerMonitor:
         if _data["args"]["pr_num"]:
             pr_num = _data["args"]["pr_num"]
 
-        task = Task(commands, server, pr_num)
+        task = Task(self.logger, commands, server, pr_num)
 
         self.tasks.append(task)
 

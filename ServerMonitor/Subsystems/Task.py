@@ -20,9 +20,16 @@ import os
 import shutil
 import pygit2
 
+## Enum for running the install task.
 TASK_INSTALL = 0
+
+## Enum for running the compile task.
 TASK_COMPILE = 1
+
+## Enum for running the pull task.
 TASK_PULL = 2
+
+## Enum for running the changelog generation task.
 TASK_CHANGELOGS = 3
 
 ## A generic task runner class. Has all the tasks hardcoded currently.
@@ -44,6 +51,7 @@ class Task(threading.Thread):
     ## The constructor
     #
     # @param self The object pointer.
+    # @param _logger A logger object from the main ServerMonitor::ServerMonitor class.
     # @param _tasks A dictionary of %TaskTypes constants which describe the sequence
     # of tasks to be executed.
     # @param _server A ServerData::ServerData object, on which we'll perform the described tasks.
@@ -53,7 +61,7 @@ class Task(threading.Thread):
     # if it encounters any errors.
     #
     # @throws ValueError In case of a missing argument.
-    def __init__(self, _tasks, _server, _pr_num=0, is_robust=False):
+    def __init__(self, _logger, _tasks, _server, _pr_num=0, is_robust=False):
         ## A dictionary of task enums -> Task::Task functions. Used in Task::Task::run.
         self.tasks_dictionary = {
             TASK_INSTALL: self.initialize_directory,
@@ -63,6 +71,12 @@ class Task(threading.Thread):
         }
 
         threading.Thread.__init__(self)
+
+        if not _logger:
+            raise ValueError("No logger provided.")
+
+        ## A logger objective.
+        self.logger = _logger
 
         if not _tasks:
             raise ValueError("No tasks set sent.")
@@ -96,12 +110,12 @@ class Task(threading.Thread):
             task_nr = self.tasks.pop()
             task = self.tasks_dictionary[task_nr]
             try:
-                self.server.logger.info(
+                self.logger.info(
                     "SERVER {0}: Task executed: {1}".format(self.server.name,
                                                             self._task_descriptions[task_nr]))
                 task()
             except RuntimeError as e:
-                self.server.logger.error(
+                self.logger.error(
                     "SERVER {0}: Runtimed while processing task: {1}".format(self.server.name, e))
                 if not self.robust:
                     break
@@ -109,8 +123,7 @@ class Task(threading.Thread):
         # Detach from the ServerData object.
         self.server.server_task = None
 
-        # Close the thread.
-        self.join()
+        # Thread will wrap itself up after exiting run.
 
     ## Pulls new code to local.
     #
@@ -230,10 +243,10 @@ class Task(threading.Thread):
         if len(files) > 3:
             args = ["python",
                     self.server.get_changelog_tool(),
-                    os.path.join(self.server.git_path, "html\\changelog.html"),
-                    os.path.join(self.server.git_path, "html\\changelogs")]
+                    self.server.git_path + "\\html\\changelog.html",
+                    self.server.git_path + "\\html\\changelogs"]
 
-            proc = subprocess.Popen(args, stdout=subprocess.PIPE)
+            proc = subprocess.Popen(args)
 
             proc.wait()
 
@@ -244,7 +257,14 @@ class Task(threading.Thread):
             else:
                 parent = [repo.head.target]
 
-            repo.index.add("html\\changelogs")
+            repo.index.add("html/changelogs/.all_changelog.yml")
+            repo.index.add("html/changelog.html")
+
+            for file in files:
+                if file not in [".all_changelog.yml", "changelog.html", "example.yml",
+                                "__CHANGELOG_README.txt"]:
+                    repo.index.remove("html/changelogs/{0}".format(file))
+
             user = repo.default_signature
             tree = repo.index.write_tree()
             commit = repo.create_commit('HEAD',
@@ -259,5 +279,5 @@ class Task(threading.Thread):
 
             for remote in repo.remotes:
                 if remote.name == remote_name:
-                    remote.push(ref)
+                    remote.push([ref])
                     break

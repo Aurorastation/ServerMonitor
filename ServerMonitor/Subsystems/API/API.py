@@ -91,7 +91,8 @@ class API(threading.Thread):
 
         if command["args"]:
             for arg in command["args"]:
-                if arg not in command["args"]:
+                # Only do the check if command["args"][arg] == True.
+                if command["args"][arg] and arg not in data["args"]:
                     return {"error": True, "msg": "Not enough arguments sent."}
 
         return command["cmd"](data)
